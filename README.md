@@ -6,6 +6,8 @@ This project is based on the WebRTC JavaScript code samples, with custom UI and 
 
 * [https://www.youtube.com/watch?v=XS-d2p9Q7ew](https://www.youtube.com/watch?v=XS-d2p9Q7ew)
 
+![Screencast Studio](image.png)
+
 ## Installation
 
 ```bash
