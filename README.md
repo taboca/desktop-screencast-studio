@@ -8,4 +8,10 @@ This project is based on the WebRTC JavaScript code samples, with custom UI and 
 npm install
 npm start
 ```
-# desktop-screencast-studio
+## Helped you? 
+
+Get in touch to send your supporting push to this bitcoin wallet address bc1qd7y7d2875ujj5uzm2eufe5zjj42ps0ye6g9cq5
+
+## Author site
+
+http://www.mgalli.com
