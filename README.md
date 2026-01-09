@@ -21,3 +21,9 @@ Get in touch to send your supporting push to this bitcoin wallet address bc1qd7y
 ## Author site
 
 http://www.mgalli.com
+
+## Attribution and License
+
+This project is based on the WebRTC JavaScript code samples: https://github.com/webrtc/samples
+
+License: [BSD-3-Clause](LICENSE.md)
