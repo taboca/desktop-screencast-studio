@@ -1,0 +1,22 @@
+{
+  "name": "desktop-screencast-studio",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Desktop screencast studio built from WebRTC samples",
+  "keywords": [
+    "webrtc"
+  ],
+  "homepage": "https://webrtc.github.io/samples/",
+  "bugs": {
+    "url": "https://github.com/webrtc/samples/issues"
+  },
+  "license": "BSD-3-Clause",
+  "author": "Marcio Galli",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/taboca/desktop-screencast-studio.git"
+  },
+  "scripts": {
+    "start": "node server.js"
+  }
+}

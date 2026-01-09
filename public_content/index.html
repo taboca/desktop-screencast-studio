@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<!--
+ *  Copyright (c) 2015 The WebRTC project authors. All Rights Reserved.
+ *
+ *  Use of this source code is governed by a BSD-style license
+ *  that can be found in the LICENSE file in the root of the source
+ *  tree.
+-->
+<html lang="en">
+<head>
+
+    <meta charset="utf-8">
+    <meta name="description" content="WebRTC code samples">
+    <meta name="viewport" content="width=device-width, user-scalable=yes, initial-scale=1, maximum-scale=1">
+    <meta itemprop="description" content="Client-side WebRTC code samples">
+    <meta itemprop="image" content="images/webrtc-icon-192x192.png">
+    <meta itemprop="name" content="WebRTC code samples">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta id="theme-color" name="theme-color" content="#04050a">
+
+    <title>Weplex Rec Studio</title>
+
+    <link rel="icon" sizes="192x192" href="images/webrtc-icon-192x192.png">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/main.css">
+
+</head>
+
+<body class="studio">
+
+<header class="studio-header">
+  <div>
+    <h1>Screencasting Recording Studio WebRTC</h1>
+  </div>
+  <img class="header-logo" src="images/webrtc-icon-192x192.png" alt="WebRTC logo">
+</header>
+
+<main class="workspace">
+  <section class="preview-stack">
+    <div class="video-card" id="desktopCard">
+      <div class="video-meta">
+        <span class="label">Desktop feed</span>
+      </div>
+      <video id="gum" playsinline autoplay muted></video>
+    </div>
+    <div class="video-card">
+      <div class="video-meta">
+        <span class="label">Recorded playback</span>
+      </div>
+      <video id="recorded" playsinline loop></video>
+    </div>
+  </section>
+
+  <aside class="side-panel" id="controlPanel">
+    <div class="panel-tabs" role="tablist" aria-label="Side panel tabs">
+      <button class="tab-button active" type="button" data-tab="demos">Cockpits</button>
+      <button class="tab-button" type="button" data-tab="controls">Controls</button>
+      <button class="tab-button" type="button" data-tab="about">About</button>
+    </div>
+
+    <section class="tab-panel active" data-tab-panel="demos">
+      <h2>Cockpit canvases</h2>
+      <p class="hint demo-hint">These pages can be used as the desktop to improve presentation. Open one of them, then use the controls to capture that specific tab.</p>
+      <div id="demoList" class="demo-list"></div>
+    </section>
+
+    <section class="tab-panel" data-tab-panel="controls">
+      <section class="panel-block">
+        <h2>Capture controls</h2>
+        <p class="hint">Recording begins 5 seconds after you press Start Recording.</p>
+        <div class="button-grid">
+          <button id="start" class="primary">Start capture</button>
+          <button id="record" disabled>Start Recording</button>
+          <button id="play" disabled>Play</button>
+          <button id="download" disabled>Download</button>
+        </div>
+      </section>
+
+      <section class="panel-block">
+        <h2>Codec &amp; constraints</h2>
+        <label class="field-label" for="codecPreferences">Recording format</label>
+        <select id="codecPreferences" disabled></select>
+        <label class="field-inline">
+          <input type="checkbox" id="echoCancellation">
+          <span>Echo cancellation</span>
+        </label>
+      </section>
+
+      <section class="panel-block">
+        <h2>Microphone sources</h2>
+        <p id="micStatus" class="hint">Grant microphone permission to view hardware names.</p>
+        <label class="field-label">Active input</label>
+        <div id="micOptions" class="mic-options" data-state="disabled">
+          <p class="hint">Allow mic access to view sources.</p>
+        </div>
+      </section>
+      </section>
+
+    </section>
+
+    <section class="tab-panel" data-tab-panel="about">
+      <h2>About</h2>
+      <div class="about-section">
+        <p class="hint">This is a screencasting tool that uses WebRTC. It's based on the samples given by the WebRTC project. This is developed by Marcio S Galli, <a href="https://www.mgalli.com" target="_blank" rel="noreferrer noopener">www.mgalli.com</a>.</p>
+      </div>
+      <div class="about-section">
+        <h2>License</h2>
+        <p class="hint">See <a href="/LICENSE.md">LICENSE.md</a> for the full license text.</p>
+      </div>
+    </section>
+  </aside>
+</main>
+
+<!-- include adapter for srcObject shim -->
+<script src="https://webrtc.github.io/adapter/adapter-latest.js"></script>
+<script src="js/main.js" async></script>
+<script>
+  const fallbackDemos = [
+    { label: "cockpit-v6", value: "/public_cockpits/cockpit-v6/" },
+    { label: "cockpit-v7", value: "/public_cockpits/cockpit-v7/" },
+    { label: "cockpit-v8", value: "/public_cockpits/cockpit-v8/" },
+    { label: "cockpit-v9", value: "/public_cockpits/cockpit-v9/" }
+  ];
+
+  const demoList = document.getElementById("demoList");
+
+  const addDemoButtons = items => {
+    demoList.innerHTML = "";
+    items.forEach(item => {
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = item.label;
+      btn.addEventListener("click", () => {
+        window.open(item.value, "_blank", "noopener");
+      });
+      demoList.appendChild(btn);
+    });
+  };
+
+  const loadDemoButtons = async () => {
+    try {
+      const response = await fetch("/api/cockpits");
+      if (!response.ok) throw new Error("API not available");
+      const data = await response.json();
+      if (Array.isArray(data.items) && data.items.length) {
+        addDemoButtons(data.items);
+        return;
+      }
+    } catch (error) {
+      // Fall back to the curated list when directory listing is unavailable.
+    }
+
+    addDemoButtons(fallbackDemos);
+  };
+
+  const tabButtons = document.querySelectorAll(".tab-button");
+  const tabPanels = document.querySelectorAll(".tab-panel");
+
+  tabButtons.forEach(button => {
+    button.addEventListener("click", () => {
+      const target = button.dataset.tab;
+      tabButtons.forEach(btn => btn.classList.toggle("active", btn === button));
+      tabPanels.forEach(panel => {
+        panel.classList.toggle("active", panel.dataset.tabPanel === target);
+      });
+    });
+  });
+
+  loadDemoButtons();
+</script>
+
+</body>
+</html>

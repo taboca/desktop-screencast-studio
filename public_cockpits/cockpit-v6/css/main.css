@@ -1,0 +1,127 @@
+/* Base page setup */
+html {
+  background: #ddd;
+  margin: 0;
+  padding: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+/* Background overlay */
+div#onTop {
+  z-index: 100;
+  position: absolute;
+  top: 0;
+  left: 0;
+  padding: 0;
+  margin: 0;
+  width: 100%;
+  height: 100%;
+  background: url(bg3.png) -375px -200px;
+  background-size: 2300px;
+}
+
+/* Flex wrappers */
+div#mediaWrapper,
+div#buttonWrapper {
+  display: flex;
+  flex: 1 1 100%;
+  flex-basis: row nowrap;
+}
+
+/* Media wrapper: 3D container with gradient, rounded corners, etc. */
+div#mediaWrapper {
+  perspective-origin: 50% 50%;
+  perspective: 500px;
+  position: absolute;
+  top: 130px;
+  left: 355px;
+
+  /* Gradient background + rounded corners */
+  background: linear-gradient(to bottom right, #4e9ef8, #3b71ca);
+  border-radius: 12px;
+  overflow: hidden;
+
+  /* Smooth 3D transforms */
+  transition: transform 0.6s ease;
+  transform-style: preserve-3d;
+  transform: rotateY(0deg);
+}
+
+/* Flip state: mirror on Y axis */
+div#mediaWrapper.flipped {
+  transform: rotateY(180deg);
+}
+
+/* Floating animation keyframes */
+@keyframes floatAnim {
+  0%   { transform: rotateX( 2deg) rotateY(-2deg) rotateZ( 1deg); }
+  50%  { transform: rotateX(-1deg) rotateY( 1deg) rotateZ(-2deg); }
+  100% { transform: rotateX( 2deg) rotateY(-2deg) rotateZ( 1deg); }
+}
+
+/* Floating state: continuous, subtle wobble */
+div#mediaWrapper.floating {
+  animation: floatAnim 3s ease-in-out infinite;
+}
+
+/* Video inside media wrapper */
+div#mediaWrapper video {
+  border: 1px solid black;
+  margin: 1px;
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+div#mediaWrapper video#pipOverlayStream {
+  max-width: 100% !important;
+}
+
+/* Button wrapper and button styles */
+div#buttonWrapper button {
+  border-radius: 0.25rem;
+  color: #ffffff;
+  display: inline-block;
+  font-size: 1rem;
+  z-index: 200;
+  font-weight: bold;
+  line-height: 1.6;
+  padding: 0.375rem 0.75rem;
+  text-align: center;
+  user-select: none;
+  vertical-align: middle;
+  margin: 5px;
+  cursor: pointer;
+}
+
+div#buttonWrapper button#startWebcam {
+  background-color: #007bff;
+  border: 1px solid #007bff;
+}
+
+div#buttonWrapper button#startScreenShare {
+  background-color: #17a2b8;
+  border: 1px solid #17a2b8;
+}
+
+div#buttonWrapper button#mergeStreams {
+  background-color: #28a745;
+  border: 1px solid #28a745;
+}
+
+div#buttonWrapper button#startRecording {
+  background-color: #17a2b8;
+  border: 1px solid #17a2b8;
+}
+
+div#buttonWrapper button#stopRecording {
+  background-color: #000000;
+  border: 1px solid #000000;
+}
+
+div#buttonWrapper button#stopAllStreams {
+  background-color: #dc3545;
+  border: 1px solid #dc3545;
+}

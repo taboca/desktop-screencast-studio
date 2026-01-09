@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Webcam &amp; Screen Preview</title>
+  <style>
+    html, body {
+      width: 100%;
+      height: 100%;
+      margin: 0;
+      overflow: hidden; /* lock the stage to the viewport and avoid scrollbars during zoom/tilt */
+    }
+    body {
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: #444;
+      font-family: sans-serif;
+    }
+    #screenWrapper {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      perspective: 800px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      overflow: visible;
+    }
+
+    /* new wrapper to move the whole scene in screen space */
+    #translateWrapper {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: transform 0.6s ease;
+    }
+
+    #clickMarker {
+      position: absolute;
+      width: 0;
+      height: 0;
+      border-left: 10px solid transparent;
+      border-right: 10px solid transparent;
+      border-bottom: 16px solid #ffeb3b;
+      transform: translate(-50%, -100%);
+      filter: drop-shadow(0 0 6px rgba(0,0,0,0.8));
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+      z-index: 25;
+    }
+
+    #paneMarker {
+      position: absolute;
+      width: 0;
+      height: 0;
+      border-left: 10px solid transparent;
+      border-right: 10px solid transparent;
+      border-bottom: 16px solid #ff5252;
+      transform: translate(-50%, -100%);
+      filter: drop-shadow(0 0 6px rgba(0,0,0,0.8));
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+      z-index: 12;
+    }
+
+    #originMarker {
+      position: absolute;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #3fa9f5;
+      box-shadow: 0 0 8px rgba(0,0,0,0.7);
+      transform: translate(-50%, -50%);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+      z-index: 13;
+    }
+
+    /* scale wrapper to contain oversize content */
+    #scaleWrapper {
+      display: inline-block;
+      transition: transform 0.6s ease;
+    }
+
+    /* placeholder sizing until stream starts */
+    #flipContainer {
+      position: relative;
+      width: 85%;
+      aspect-ratio: 16/9;
+      background: black;
+      border-radius: 24px;               /* increased rounding */
+      box-shadow: 0 0 16px rgba(0,0,0,0.8);
+      transform-style: preserve-3d;
+      transition: transform 0.6s ease,
+                  width 0.3s ease,
+                  height 0.3s ease;
+    }
+    #flipContainer.flipped { transform: rotateY(180deg); }
+    #flipContainer.floating {
+      animation: floatAnim 4s ease-in-out infinite;
+    }
+    @keyframes floatAnim {
+      0%   { transform: translateZ(0) rotateX(3deg) rotateY(-3deg) rotateZ(2deg); }
+      50%  { transform: translateZ(5px) rotateX(-2deg) rotateY(2deg) rotateZ(-3deg); }
+      100% { transform: translateZ(0) rotateX(3deg) rotateY(-3deg) rotateZ(2deg); }
+    }
+
+    .face {
+      position: absolute;
+      top: 0; left: 0; right: 0; bottom: 0;
+      backface-visibility: hidden;
+      border-radius: inherit;            /* match container rounding */
+      overflow: hidden;
+    }
+    .face.front {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .face.back {
+      transform: rotateY(180deg);
+      background: linear-gradient(to bottom right, #4e9ef8, #f08c42);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: black;                      /* text in black */
+      font-size: 3em;                    /* 3× size */
+      font-weight: bold;
+      text-align: center;
+      padding: 1rem;
+    }
+    #screenCanvas {
+      width: 100%;
+      height: 100%;
+      display: block;
+    }
+
+    #webcamCanvas {
+      position: absolute;
+      top: 10px; left: 10px;
+      width: 320px;
+      border-radius: 50%;
+      box-shadow: 0 0 12px rgba(0,0,0,0.8);
+      cursor: move;
+      background: black;
+      z-index: 10;
+    }
+
+    .readout {
+      font-family: monospace;
+      background: #eee;
+      padding: 4px 8px;
+      border-radius: 4px;
+      color: #333;
+      font-size: 0.9rem;
+    }
+
+    #controlPanel {
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      width: 300px;
+      background: rgba(10,10,10,0.95);
+      color: #f7f7f7;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 18px 18px 24px;
+      border-right: 1px solid rgba(255,255,255,0.15);
+      box-shadow: 4px 0 18px rgba(0,0,0,0.45);
+      z-index: 30;
+      transition: transform 0.3s ease, opacity 0.3s ease;
+    }
+    #controlPanel.collapsed {
+      opacity: 0;
+      transform: translateX(-320px);
+      pointer-events: none;
+    }
+    .panel-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+    }
+    .panel-header h2 {
+      font-size: 1.1rem;
+      margin: 0;
+      letter-spacing: 0.05em;
+    }
+    .panel-help {
+      margin: 0;
+      font-size: 0.85rem;
+      line-height: 1.4;
+      background: rgba(255,255,255,0.08);
+      padding: 8px 10px;
+      border-radius: 6px;
+      color: #ddd;
+    }
+    .panel-buttons {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    #controlPanel button {
+      padding: 8px 12px;
+      font-size: 0.95rem;
+      font-weight: 600;
+      border-radius: 6px;
+      border: 1px solid rgba(255,255,255,0.4);
+      background: rgba(255,255,255,0.1);
+      color: #f7f7f7;
+      cursor: pointer;
+    }
+    #controlPanel button:hover {
+      background: rgba(255,255,255,0.2);
+    }
+    #collapsePanelBtn {
+      width: auto;
+      padding: 4px 10px;
+      font-size: 0.8rem;
+    }
+    .panel-readouts {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      margin-top: auto;
+    }
+    .panel-readouts .readout {
+      background: rgba(0,0,0,0.4);
+      color: #fff;
+    }
+    .panel-footnote {
+      font-size: 0.75rem;
+      color: #bbb;
+    }
+  </style>
+</head>
+<body>
+  <div id="controlPanel">
+    <div class="panel-header">
+      <h2>Cockpit V7 Panel</h2>
+      <button id="collapsePanelBtn" title="Hide panel (Shift+T)">Hide</button>
+    </div>
+    <p class="panel-help">
+      Use the buttons below to start feeds, flip, or float the frame. Shift+Click anywhere on the stage toggles the kinetic zoom/tilt and pulls the clicked point toward center. Shift+T hides or shows this panel.
+    </p>
+    <div class="panel-buttons">
+      <button id="startWebcamBtn">Start Webcam</button>
+      <button id="startScreenShareBtn">Start Screen Share</button>
+      <button id="floatBtn">Float</button>
+      <button id="flipBtn">Flip</button>
+    </div>
+    <div class="panel-readouts">
+      <div id="dimReadout" class="readout">Container: —×—</div>
+      <div id="streamReadout" class="readout">Stream: —×—</div>
+      <p class="panel-footnote">Panel toggle: Shift+T</p>
+    </div>
+  </div>
+  <div id="screenWrapper">
+    <div id="clickMarker" aria-hidden="true"></div>
+    <div id="translateWrapper">
+      <div id="scaleWrapper">
+        <div id="flipContainer">
+          <div class="face front">
+            <canvas id="screenCanvas"></canvas>
+          </div>
+          <div class="face back">
+            Demo concept of an AI agent assistant in the browser
+          </div>
+          <div id="paneMarker" aria-hidden="true"></div>
+          <div id="originMarker" aria-hidden="true"></div>
+        </div>
+      </div>
+    </div>
+    <canvas id="webcamCanvas"></canvas>
+  </div>
+
+  <script>
+    let streamW = 0, streamH = 0;
+    let baseScale = 1;
+    const camVideo     = document.createElement("video");
+    const screenVideo  = document.createElement("video");
+    camVideo.playsInline    = true;
+    screenVideo.playsInline = true;
+
+    const webcamCanvas   = document.getElementById("webcamCanvas");
+    const translateWrapper = document.getElementById("translateWrapper");
+    const screenCanvas   = document.getElementById("screenCanvas");
+    const flipContainer  = document.getElementById("flipContainer");
+    const scaleWrapper   = document.getElementById("scaleWrapper");
+    const screenWrapper  = document.getElementById("screenWrapper");
+    const clickMarker    = document.getElementById("clickMarker");
+    const paneMarker     = document.getElementById("paneMarker");
+    const originMarker   = document.getElementById("originMarker");
+    const dimReadout     = document.getElementById("dimReadout");
+    const streamReadout  = document.getElementById("streamReadout");
+    const webcamCtx      = webcamCanvas.getContext("2d");
+    const screenCtx      = screenCanvas.getContext("2d");
+    const controlPanel   = document.getElementById("controlPanel");
+    const collapsePanelBtn = document.getElementById("collapsePanelBtn");
+
+    const frameKinetics = {
+      config: {
+        maxZoom: 2.0,
+        tiltDeg: 12,
+        panDeg: 12
+      },
+      zoomed: false,
+      currentZoom: 1,
+      currentTilt: 0,
+      currentPan: 0,
+      targetOrigin: { x: 0.5, y: 0.5 },
+      focusTranslate: { x: 0, y: 0 },
+      updateFocusTranslation() {
+        const wrapperRect = screenWrapper.getBoundingClientRect();
+        const prevScaleTransform = scaleWrapper.style.transform;
+        const prevTranslateTransform = translateWrapper.style.transform;
+        // Keep origin at center; measure with scale intact (no rotation/translation).
+        scaleWrapper.style.transformOrigin = "50% 50%";
+        const measureScale = baseScale * this.currentZoom;
+        scaleWrapper.style.transform = `scale(${measureScale})`;
+        translateWrapper.style.transform = "none";
+        const rect = flipContainer.getBoundingClientRect();
+        if (!rect.width || !rect.height) {
+          scaleWrapper.style.transform = prevScaleTransform;
+          translateWrapper.style.transform = prevTranslateTransform;
+          return;
+        }
+        const targetX = rect.left + rect.width * this.targetOrigin.x;
+        const targetY = rect.top + rect.height * this.targetOrigin.y;
+        const centerX = wrapperRect.left + wrapperRect.width / 2;
+        const centerY = wrapperRect.top + wrapperRect.height / 2;
+        this.focusTranslate = {
+          x: centerX - targetX,
+          y: centerY - targetY
+        };
+        scaleWrapper.style.transform = prevScaleTransform;
+        translateWrapper.style.transform = prevTranslateTransform;
+      },
+      toggle() {
+        this.zoomed = !this.zoomed;
+        this.currentZoom = this.zoomed ? this.config.maxZoom : 1;
+        this.currentTilt = this.zoomed ? this.randomTilt() : 0;
+        this.currentPan = this.zoomed ? this.config.panDeg : 0;
+        if (this.zoomed) this.updateFocusTranslation();
+        if (!this.zoomed) {
+          this.targetOrigin = { x: 0.5, y: 0.5 };
+          this.focusTranslate = { x: 0, y: 0 };
+        }
+        applyScaleTransform();
+      },
+      setTargetFromEvent(e) {
+        const rect = flipContainer.getBoundingClientRect();
+        if (!rect.width || !rect.height) return;
+        const clamp = (val) => Math.min(1, Math.max(0, val));
+        const x = clamp((e.clientX - rect.left) / rect.width);
+        const y = clamp((e.clientY - rect.top) / rect.height);
+        this.targetOrigin = { x, y };
+      },
+      getPointFromEvent(e) {
+        const rect = flipContainer.getBoundingClientRect();
+        if (!rect.width || !rect.height) return { x: 0.5, y: 0.5 };
+        const clamp = (val) => Math.min(1, Math.max(0, val));
+        const x = clamp((e.clientX - rect.left) / rect.width);
+        const y = clamp((e.clientY - rect.top) / rect.height);
+        return { x, y };
+      },
+      setTargetFromPoint(point) {
+        this.targetOrigin = point;
+      },
+      randomTilt() {
+        const { tiltDeg } = this.config;
+        return (Math.random() * 2 - 1) * tiltDeg;
+      }
+    };
+
+    function drawLoop(video, canvas, ctx) {
+      (function loop() {
+        if (video.readyState >= 2)
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+        requestAnimationFrame(loop);
+      })();
+    }
+
+    function buildTransform(tx, ty) {
+      const totalScale = baseScale * frameKinetics.currentZoom;
+      return `scale(${totalScale}) rotateX(${frameKinetics.currentPan}deg) rotateY(${frameKinetics.currentTilt}deg)`;
+    }
+
+    function applyScaleTransform() {
+      // Keep origin centered for scale/tilt.
+      scaleWrapper.style.transformOrigin = "50% 50%";
+      translateWrapper.style.transform = `translate3d(${frameKinetics.focusTranslate.x}px, ${frameKinetics.focusTranslate.y}px, 0)`;
+      scaleWrapper.style.transform = buildTransform();
+    }
+
+    function updateContainerSize() {
+      const w = flipContainer.offsetWidth;
+      const h = flipContainer.offsetHeight;
+      dimReadout.textContent = `Container: ${w}px × ${h}px`;
+    }
+
+    function adjustContainerToStream() {
+      if (!streamW || !streamH) return;
+      flipContainer.style.width  = streamW + "px";
+      flipContainer.style.height = streamH + "px";
+      updateContainerSize();
+      updateScale();
+    }
+
+    function updateScale() {
+      if (!streamW || !streamH) {
+        baseScale = 1;
+        applyScaleTransform();
+        return;
+      }
+      const vw = window.innerWidth * 0.8;
+      const vh = window.innerHeight * 0.8;
+      const scale = Math.min(1, vw / streamW, vh / streamH);
+      baseScale = scale;
+      if (frameKinetics.zoomed) frameKinetics.updateFocusTranslation();
+      applyScaleTransform();
+    }
+
+    window.addEventListener("resize", () => {
+      if (streamW && streamH) adjustContainerToStream();
+      else updateContainerSize();
+    });
+
+    screenVideo.onloadedmetadata = () => {
+      streamW = screenVideo.videoWidth;
+      streamH = screenVideo.videoHeight;
+      screenCanvas.width  = streamW;
+      screenCanvas.height = streamH;
+      drawLoop(screenVideo, screenCanvas, screenCtx);
+      streamReadout.textContent = `Stream: ${streamW}px × ${streamH}px`;
+      adjustContainerToStream();
+    };
+
+    camVideo.onloadedmetadata = () => {
+      webcamCanvas.width  = camVideo.videoWidth;
+      webcamCanvas.height = camVideo.videoHeight;
+      drawLoop(camVideo, webcamCanvas, webcamCtx);
+    };
+
+    document.getElementById("startWebcamBtn").onclick = async () => {
+      const s = await navigator.mediaDevices.getUserMedia({ video: true });
+      camVideo.srcObject = s; camVideo.muted = true; await camVideo.play();
+    };
+    document.getElementById("startScreenShareBtn").onclick = async () => {
+      const s = await navigator.mediaDevices.getDisplayMedia({ video: true });
+      screenVideo.srcObject = s; screenVideo.muted = true; await screenVideo.play();
+    };
+    document.getElementById("floatBtn").onclick = () => {
+      flipContainer.classList.toggle("floating");
+    };
+    document.getElementById("flipBtn").onclick = () => {
+      flipContainer.classList.toggle("flipped");
+    };
+
+    function togglePanelState(forceState) {
+      const collapsed = forceState !== undefined
+        ? forceState
+        : !controlPanel.classList.contains("collapsed");
+      controlPanel.classList.toggle("collapsed", collapsed);
+    }
+
+    collapsePanelBtn.addEventListener("click", () => togglePanelState());
+
+    document.addEventListener("keydown", e => {
+      const k = e.key.toLowerCase();
+      if (e.shiftKey && k === "t") {
+        e.preventDefault();
+        togglePanelState();
+        return;
+      }
+      if (k === "a") flipContainer.classList.add("floating");
+      else if (k === "p") flipContainer.classList.remove("floating");
+      else if (k === "f") flipContainer.classList.toggle("flipped");
+    });
+
+    document.addEventListener("click", e => {
+      if (!e.shiftKey || e.button !== 0) return;
+      if (controlPanel.contains(e.target)) return;
+      e.preventDefault();
+      const point = frameKinetics.getPointFromEvent(e);
+      if (!frameKinetics.zoomed) frameKinetics.setTargetFromPoint(point);
+      placeMarker(e);
+      placePaneMarker(point);
+      placeOriginMarker(point);
+      frameKinetics.toggle();
+    });
+
+    // drag-and-drop webcam
+    let dragging = false, dx = 0, dy = 0;
+    webcamCanvas.addEventListener("mousedown", e => {
+      dragging = true;
+      dx = e.clientX - webcamCanvas.offsetLeft;
+      dy = e.clientY - webcamCanvas.offsetTop;
+    });
+    document.addEventListener("mousemove", e => {
+      if (!dragging) return;
+      webcamCanvas.style.left = `${e.clientX - dx}px`;
+      webcamCanvas.style.top  = `${e.clientY - dy}px`;
+    });
+    document.addEventListener("mouseup", () => dragging = false);
+
+    // initial placeholder readout
+    window.addEventListener("load", updateContainerSize);
+    applyScaleTransform();
+
+    function placeMarker(e) {
+      const rect = screenWrapper.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      clickMarker.style.left = `${x}px`;
+      clickMarker.style.top = `${y}px`;
+      clickMarker.style.opacity = 1;
+      clearTimeout(placeMarker._t);
+      placeMarker._t = setTimeout(() => clickMarker.style.opacity = 0, 1200);
+    }
+
+    function placePaneMarker(point) {
+      paneMarker.style.left = `${(point.x * 100).toFixed(2)}%`;
+      paneMarker.style.top = `${(point.y * 100).toFixed(2)}%`;
+      paneMarker.style.opacity = 1;
+      clearTimeout(placePaneMarker._t);
+      placePaneMarker._t = setTimeout(() => paneMarker.style.opacity = 0, 1200);
+    }
+
+    function placeOriginMarker(point) {
+      // Visualize the centered origin.
+      originMarker.style.left = "50%";
+      originMarker.style.top = "50%";
+      originMarker.style.opacity = 1;
+      clearTimeout(placeOriginMarker._t);
+      placeOriginMarker._t = setTimeout(() => originMarker.style.opacity = 0, 1200);
+    }
+  </script>
+</body>
+</html>
